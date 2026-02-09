@@ -1,0 +1,75 @@
+services:
+  db:
+    image: postgres:15-alpine # 1.1 Image : `postgres:15-alpine`
+    container_name: eval-db   
+    environment: # 1.1 Nom du contenu `POSTGRES_USER=evaluser`, `POSTGRES_PASSWORD=evalpass`, `POSTGRES_DB=evaldb` 
+                 # 4.1 Modifiez le `docker-compose.yml` pour utiliser ces variables.
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db-data:/var/lib/postgresql/data # 1.1 Volume nommé `db-data` monté sur `/var/lib/postgresql/data`
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql # 2.3 Montez ce fichier dans le conteneur PostgreSQL pour qu'il soit exécuté automatiquement.
+    networks:
+      - eval-network # 2.2 Configurez un réseau personnalisé `eval-network` de type bridge et assignez tous les services à ce réseau.
+
+  adminer:
+    image: adminer:latest
+    container_name: eval-adminer
+    ports:
+      - "8080:8080" # 1.1 Port 8080 exposé
+    depends_on:
+      - db # 1.1 Dépend de la base de données
+    networks:
+      - eval-network
+
+  redis:
+    image: redis:7-alpine # 2.1 Image : `redis:7-alpine`
+    container_name: eval-redis
+    volumes:
+      - redis-data:/data # 2.1 Volume nommé pour la persistance
+    networks:
+      - eval-network
+
+  api:
+    build: ./api # 2.1 Build depuis `./api`
+    container_name: eval-api
+    environment: # 2.1 Variables d'environnement pour la connexion DB et Redis
+      DB_HOST: db
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      REDIS_HOST: redis
+      PORT: ${API_PORT}
+    depends_on:
+      - db
+      - redis
+    healthcheck: # 2.1 Port 3000 exposé / Healthcheck sur `/health`
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - eval-network
+
+  nginx:
+    image: nginx:alpine # 3.1 Image : `nginx:alpine`
+    container_name: eval-nginx
+    ports:
+      - "80:80" # 3.1 Port 80 exposé sur le port 80 de l'hôte
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro # 3.1 Monte la configuration
+      - ./nginx/index.html:/usr/share/nginx/html/index.html:ro # 3.1 Monte le fichier HTML 
+    depends_on:
+      - api # 3.1 Dépend de l'API
+    networks:
+      - eval-network
+
+# 2.2 Configurez un réseau personnalisé `eval-network` de type bridge et assignez tous les services à ce réseau.
+networks:
+  eval-network:
+    driver: bridge
+
+volumes:
+  db-data:
+  redis-data:

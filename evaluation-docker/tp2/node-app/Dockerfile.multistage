@@ -1,0 +1,55 @@
+# 3.1 `ARG NODE_VERSION=18` pour la version de Node
+ARG NODE_VERSION=18
+
+# Stage 1 (`builder`) : Installation de toutes les dépendances et tests
+# 1.1 Image de base : `node:18-alpine` / 3.1
+FROM node:${NODE_VERSION}-alpine AS builder
+
+# 1.1 Répertoire de travail : `/app`
+WORKDIR /app
+
+# 2.1 Copiez d'abord `package.json` seul
+COPY package.json ./
+
+# 2.1 Installez les dépendances avec `npm install` / 2.2
+RUN npm install
+
+# 1.1 Copier les fichiers de l'application / 2.1 Puis copiez le reste du code
+COPY . .
+
+# 2.2 Créez un nouveau Dockerfile utilisant un build multi-stage pour une application avec dépendances de développement
+RUN npm test
+
+
+# tage 2 (`production`) : Uniquement les dépendances de production
+FROM node:${NODE_VERSION}-alpine AS production
+
+# 3.1 `ENV APP_ENV=production` pour l'environnement / `ENV PORT=3000` pour le port
+ENV APP_ENV=production
+ENV PORT=3000
+
+# 1.1 Répertoire de travail : `/app`
+WORKDIR /app
+
+# 2.3 Créer un utilisateur `appuser` avec UID 1001
+RUN addgroup -g 1001 appgroup && \
+    adduser -u 1001 -G appgroup -s /bin/sh -D appuser
+
+# 2.2 Créez un nouveau Dockerfile utilisant un build multi-stage pour une application avec dépendances de développement
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/app.js ./
+
+# 2.2 Créez un nouveau Dockerfile utilisant un build multi-stage pour une application avec dépendances de développement
+RUN npm install --only=production
+
+# 2.3 Exécuter l'application avec cet utilisateur
+RUN chown -R appuser:appgroup /app
+
+# 2.3 Créer un utilisateur `appuser` avec UID 1001 / Exécuter l'application avec cet utilisateur
+USER appuser
+
+# 1.1 Exposer le port 3000 / 3.1 
+EXPOSE ${PORT}
+
+# 1.1 Commande de démarrage : `npm start`
+CMD ["npm", "start"]

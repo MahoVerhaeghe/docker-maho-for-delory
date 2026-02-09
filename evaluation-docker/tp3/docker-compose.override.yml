@@ -1,0 +1,10 @@
+services:
+  api:
+    volumes:
+      - ./api:/app # 4.2 Montez le code source de l'API en volume (hot reload)
+    labels:
+      environment: "development" # 4.2 Ajoutez des labels pour identifier l'environnement
+
+  db:
+    ports:
+      - "5432:5432" # 4.2 Exposez le port PostgreSQL (5432)
